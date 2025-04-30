@@ -70,6 +70,7 @@ void print_hex_password(const unsigned char *password, size_t len) {
     printf("\n");
 }
 
+// From https://github.com/andrewkiluk/RSA-Library
 static inline uint64_t modmult(uint64_t a, uint64_t b, uint64_t mod) {
   // this is necessary since we will be dividing by a
   if (a == 0) {
@@ -105,6 +106,7 @@ static inline uint64_t modmult(uint64_t a, uint64_t b, uint64_t mod) {
   return sum;
 }
 
+// From https://github.com/andrewkiluk/RSA-Library
 uint64_t rsa_modExp(uint64_t b, uint64_t e, uint64_t m) {
   uint64_t product;
   product = 1;
@@ -122,6 +124,7 @@ uint64_t rsa_modExp(uint64_t b, uint64_t e, uint64_t m) {
   return product;
 }
 
+// From https://github.com/andrewkiluk/RSA-Library
 int rsa_encrypt(const char *message, char *encrypted,
                     const unsigned long message_size,
                     uint64_t modulus, uint64_t exponent) {
