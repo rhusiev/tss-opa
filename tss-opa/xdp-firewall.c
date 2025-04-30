@@ -10,7 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "xdp-firewall.h"
+#include "../include/xdp-firewall.h"
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {

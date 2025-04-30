@@ -1,7 +1,7 @@
 #include "vmlinux.h"
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
-#include "xdp-firewall.h"
+#include "../include/xdp-firewall.h"
 
 #define ETH_P_IP 0x0800
 

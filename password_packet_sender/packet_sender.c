@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "./xdp-firewall.h"
+#include "../include/xdp-firewall.h"
 
 // Checksum calculation for IP and UDP headers
 unsigned short in_cksum(unsigned short *addr, int len) {
