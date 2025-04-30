@@ -1,6 +1,8 @@
 ecc
 ecli
 .output
+xdp-firewall
+packet_sender
 
 ### C++ ###
 # Prerequisites
