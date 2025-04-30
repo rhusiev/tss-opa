@@ -1,10 +1,10 @@
 # The Tea-Ware License (Version 2.0)
 
-Copyright (c) 2024 Radomyr Husiev <h.radomyr@proton.me>
+Copyright (c) 2024 Radomyr Husiev <h.radomyr@proton.me>, Kateryna Kovalchuk, Petro Mozil
 
 Feel free to do whatever you want with this software, remembering to respect the terms of this license!
 
-If we meet someday and you think this software is worth it, you are welcome (but not legally obligated) to offer a cup of tea (or hot chocolate, if you prefer) in return!
+If we meet someday and you think this software is worth it, you are welcome (but not legally obligated) to offer a cup of tea (or hot chocolate, if you prefer) in return! Additionally, we would not object your desire to make some BBQ with us.
 
 ## Permission
 
