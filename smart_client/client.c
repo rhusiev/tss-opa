@@ -14,7 +14,7 @@
 #define CTR 1
 #define ECB 1
 
-#include "aes.h"
+#include "../aes/include/aes.h"
 
 static const uint8_t key[16] = {
     (uint8_t)0x2b, (uint8_t)0x7e, (uint8_t)0x15, (uint8_t)0x16,
