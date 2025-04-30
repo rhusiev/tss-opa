@@ -8,6 +8,10 @@
 #include <unistd.h>
 #include "../include/xdp-firewall.h"
 
+
+static const uint64_t MOD = 1773884659UL;
+static const uint64_t EXP = 782852353UL;
+
 // Checksum calculation for IP and UDP headers
 unsigned short in_cksum(unsigned short *addr, int len) {
     int nleft = len;
@@ -66,6 +70,75 @@ void print_hex_password(const unsigned char *password, size_t len) {
     printf("\n");
 }
 
+static inline uint64_t modmult(uint64_t a, uint64_t b, uint64_t mod) {
+  // this is necessary since we will be dividing by a
+  if (a == 0) {
+    return 0;
+  }
+  register uint64_t product = a * b;
+  // if multiplication does not overflow, we can use it
+  if (product / a == b) {
+    return product % mod;
+  }
+  // if a % 2 == 1 i. e. a >> 1 is not a / 2
+  if (a & 1) {
+    product = modmult((a >> 1), b, mod);
+    if ((product << 1) > product) {
+      return (((product << 1) % mod) + b) % mod;
+    }
+  }
+  // implicit else
+  product = modmult((a >> 1), b, mod);
+  if ((product << 1) > product) {
+    return (product << 1) % mod;
+  }
+  // implicit else: this is about 10x slower than the code above, but it will
+  // not overflow
+  uint64_t sum;
+  sum = 0;
+  while (b > 0) {
+    if (b & 1)
+      sum = (sum + a) % mod;
+    a = (2 * a) % mod;
+    b >>= 1;
+  }
+  return sum;
+}
+
+uint64_t rsa_modExp(uint64_t b, uint64_t e, uint64_t m) {
+  uint64_t product;
+  product = 1;
+  if (b < 0 || e < 0 || m <= 0) {
+    return -1;
+  }
+  b = b % m;
+  while (e > 0) {
+    if (e & 1) {
+      product = modmult(product, b, m);
+    }
+    b = modmult(b, b, m);
+    e >>= 1;
+  }
+  return product;
+}
+
+int rsa_encrypt(const char *message, char *encrypted,
+                    const unsigned long message_size,
+                    uint64_t modulus, uint64_t exponent) {
+  if (encrypted == NULL) {
+    fprintf(stderr, "Error: Heap allocation failed.\n");
+    return 1;
+  }
+
+  for (size_t i = 0; i < message_size; i++) {
+    if ((encrypted[i] = rsa_modExp(message[i], exponent, modulus)) ==
+        -1)
+      return 1;
+  }
+
+  return 0;
+}
+
 int main(int argc, char **argv) {
     int sockfd;
     struct sockaddr_in dest;
@@ -76,7 +149,7 @@ int main(int argc, char **argv) {
     struct udphdr *udp_header;
     char *data;
     int data_len;
-    unsigned char password[PASSWORD_SIZE] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+    unsigned char password[16] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
                                              0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
                                              0x77, 0x88, 0x99, 0x00};
     unsigned char *custom_password = NULL;
@@ -174,7 +247,8 @@ int main(int argc, char **argv) {
 
     /* Set up password header */
     pw_header = (struct passwd_hdr *)(packet + sizeof(struct ip));
-    memcpy(pw_header->password, password, PASSWORD_SIZE);
+    rsa_encrypt((char *)password, (char *)pw_header->password, 16, MOD, EXP);
+    // memcpy(pw_header->password, password, PASSWORD_SIZE);
 
     /* Set up UDP header */
     udp_header = (struct udphdr *)(packet + sizeof(struct ip) +
