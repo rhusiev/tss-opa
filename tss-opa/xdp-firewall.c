@@ -231,7 +231,14 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    err = xdp_attach(ifindex, bpf_program__fd(skel->progs.firewall_xdp),
+    err = xdp_attach(ifindex, bpf_program__fd(skel->progs.check_passwd),
+                     xdp_flags);
+    if (err) {
+        xdp_firewall_bpf__destroy(skel);
+        return 1;
+    }
+
+    err = xdp_attach(ifindex, bpf_program__fd(skel->progs.filter_pass),
                      xdp_flags);
     if (err) {
         xdp_firewall_bpf__destroy(skel);

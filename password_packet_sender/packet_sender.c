@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -125,7 +126,7 @@ uint64_t rsa_modExp(uint64_t b, uint64_t e, uint64_t m) {
 }
 
 // From https://github.com/andrewkiluk/RSA-Library
-int rsa_encrypt(const char *message, char *encrypted,
+int rsa_encrypt(const char *message, uint64_t *encrypted,
                     const unsigned long message_size,
                     uint64_t modulus, uint64_t exponent) {
   if (encrypted == NULL) {
@@ -250,8 +251,8 @@ int main(int argc, char **argv) {
 
     /* Set up password header */
     pw_header = (struct passwd_hdr *)(packet + sizeof(struct ip));
-    rsa_encrypt((char *)password, (char *)pw_header->password, 16, MOD, EXP);
-    // memcpy(pw_header->password, password, PASSWORD_SIZE);
+    rsa_encrypt((char *)password, (uint64_t *)pw_header->password, 16, MOD, EXP);
+    // memcpy(pw_header->password, password, sizeof(struct passwd_hdr));
 
     /* Set up UDP header */
     udp_header = (struct udphdr *)(packet + sizeof(struct ip) +

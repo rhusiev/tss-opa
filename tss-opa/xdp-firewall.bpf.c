@@ -21,12 +21,56 @@ struct {
     __uint(max_entries, 1);
 } password_config SEC(".maps");
 
-// From https://github.com/andrewkiluk/RSA-Library
-static int rsa_decrypt(const long long *message, char *decrypted,
-                    const unsigned long message_size,
-                    uint64_t modulus, uint64_t exponent);
+static __always_inline bool is_port_allowed(__u16 port) {
+    __u8 *value;
+    value = bpf_map_lookup_elem(&allowed_ports, &port);
+    return value != NULL;
+}
 
-static bool has_valid_password(struct ethhdr *eth, void *data_end) {
+static __always_inline uint64_t mod_exp(uint64_t base, uint64_t exp, uint64_t mod) {
+    uint64_t result = 1;
+    base = base % mod;
+    while (exp > 0) {
+        if (exp % 2 == 1) {
+            result = (result * base) % mod;
+        }
+        exp = exp >> 1;
+        base = (base * base) % mod;
+    }
+    return result;
+}
+
+static __always_inline bool decrypt_and_compare(uint64_t *msg, char *expected) {
+    // Decrypt 64-bits at a time and compare byte by byte
+
+    uint64_t decrypted0 = mod_exp(msg[0], EXP, MOD); // Decrypt first 64 bits
+    // uint64_t decrypted0 = msg[0];
+
+    if (((char *)&decrypted0)[0] != expected[0]) return false;
+    if (((char *)&decrypted0)[1] != expected[1]) return false;
+    if (((char *)&decrypted0)[2] != expected[2]) return false;
+    if (((char *)&decrypted0)[3] != expected[3]) return false;
+    if (((char *)&decrypted0)[4] != expected[4]) return false;
+    if (((char *)&decrypted0)[5] != expected[5]) return false;
+    if (((char *)&decrypted0)[6] != expected[6]) return false;
+    if (((char *)&decrypted0)[7] != expected[7]) return false;
+
+    uint64_t decrypted1 = mod_exp(msg[1], EXP, MOD); // Decrypt first 64 bits
+    // uint64_t decrypted1 = msg[1];
+
+    if (((char *)&decrypted1)[0] != expected[8]) return false;
+    if (((char *)&decrypted1)[1] != expected[9]) return false;
+    if (((char *)&decrypted1)[2] != expected[10]) return false;
+    if (((char *)&decrypted1)[3] != expected[11]) return false;
+    if (((char *)&decrypted1)[4] != expected[12]) return false;
+    if (((char *)&decrypted1)[5] != expected[13]) return false;
+    if (((char *)&decrypted1)[6] != expected[14]) return false;
+    if (((char *)&decrypted1)[7] != expected[15]) return false;
+
+    return true;
+}
+
+static __always_inline bool has_valid_password(struct ethhdr *eth, void *data_end) {
     if ((void *)(eth + 1) > data_end)
         return false;
 
@@ -41,122 +85,17 @@ static bool has_valid_password(struct ethhdr *eth, void *data_end) {
     struct passwd_hdr *incoming_pw = (struct passwd_hdr *)(ip + 1);
     if ((void *)(incoming_pw + 1) > data_end)
         return false;
-    char result[32];
-    rsa_decrypt(incoming_pw->password, result, sizeof(struct passwd_hdr), MOD, EDP);
 
     __u32 key = 0;
     struct passwd_hdr *expected_pw = bpf_map_lookup_elem(&password_config, &key);
     if (!expected_pw)
         return false;  // No password - reject
 
-    // For now compare 8 bytes, simply like this
-    if (result[0] != expected_pw->password[0])
-        return false;
-    if (result[1] != expected_pw->password[1])
-        return false;
-    if (result[2] != expected_pw->password[2])
-        return false;
-    if (result[3] != expected_pw->password[3])
-        return false;
-    if (result[4] != expected_pw->password[4])
-        return false;
-    if (result[5] != expected_pw->password[5])
-        return false;
-    if (result[6] != expected_pw->password[6])
-        return false;
-    if (result[7] != expected_pw->password[7])
-        return false;
-
-    return true;
-}
-
-static bool is_port_allowed(__u16 port) {
-    __u8 *value;
-    value = bpf_map_lookup_elem(&allowed_ports, &port);
-    return value != NULL;
-}
-
-// From https://github.com/andrewkiluk/RSA-Library
-static inline uint64_t modmult(uint64_t a, uint64_t b, uint64_t mod) {
-  // this is necessary since we will be dividing by a
-  if (a == 0) {
-    return 0;
-  }
-  register uint64_t product = a * b;
-  // if multiplication does not overflow, we can use it
-  if (product / a == b) {
-    return product % mod;
-  }
-  // if a % 2 == 1 i. e. a >> 1 is not a / 2
-  if (a & 1) {
-    product = modmult((a >> 1), b, mod);
-    if ((product << 1) > product) {
-      return (((product << 1) % mod) + b) % mod;
-    }
-  }
-  // implicit else
-  product = modmult((a >> 1), b, mod);
-  if ((product << 1) > product) {
-    return (product << 1) % mod;
-  }
-  // implicit else: this is about 10x slower than the code above, but it will
-  // not overflow
-  uint64_t sum;
-  sum = 0;
-  while (b > 0) {
-    if (b & 1)
-      sum = (sum + a) % mod;
-    a = (2 * a) % mod;
-    b >>= 1;
-  }
-  return sum;
-}
-
-// From https://github.com/andrewkiluk/RSA-Library
-uint64_t rsa_modExp(uint64_t b, uint64_t e, uint64_t m) {
-  uint64_t product;
-  product = 1;
-  if (b < 0 || e < 0 || m <= 0) {
-    return -1;
-  }
-  b = b % m;
-  while (e > 0) {
-    if (e & 1) {
-      product = modmult(product, b, m);
-    }
-    b = modmult(b, b, m);
-    e >>= 1;
-  }
-  return product;
-}
-
-// From https://github.com/andrewkiluk/RSA-Library
-static int rsa_decrypt(const long long *message, char *decrypted,
-                    const unsigned long message_size,
-                    uint64_t modulus, uint64_t exponent) {
-  if (message_size % sizeof(uint64_t) != 0) {
-    fprintf(stderr,
-            "Error: message_size is not divisible by %d, so cannot be output "
-            "of rsa_encrypt\n",
-            (int)sizeof(uint64_t));
-    return NULL;
-  }
-  // We allocate space to do the decryption (temp) and space for the output as a
-  // char array (decrypted)
-  // char *temp = malloc(message_size);
-  if ((decrypted == NULL) || (temp == NULL)) {
-    fprintf(stderr, "Error: Heap allocation failed.\n");
-    return 1;
-  }
-  // Now we go through each 8-byte chunk and decrypt it.
-  for (size_t i = 0; i < message_size / 8; i++) {
-    decrypted[i] = rsa_modExp(message[i], priv->exponent, priv->modulus)) ==
-  }
-  return 0;
+    return decrypt_and_compare((uint64_t *)incoming_pw->password, (char *)expected_pw->password);
 }
 
 SEC("xdp")
-int firewall_xdp(struct xdp_md *ctx) {
+int check_passwd(struct xdp_md *ctx) {
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
     struct ethhdr *eth = data;
@@ -169,9 +108,9 @@ int firewall_xdp(struct xdp_md *ctx) {
     if ((void *)(ip + 1) > data_end)
         return XDP_DROP;
 
-    // Pass non-UDP
+    // Drop non-UDP
     if (ip->protocol != IPPROTO_UDP)
-        return XDP_PASS;
+        return XDP_DROP;
 
     struct passwd_hdr *pw = (struct passwd_hdr *)(ip + 1);
     if ((void *)(pw + 1) > data_end)
@@ -188,16 +127,35 @@ int firewall_xdp(struct xdp_md *ctx) {
     if (!has_valid_password(eth, data_end))
         return XDP_DROP;
 
-    char *pw_start = (char *)pw;
-    char *payload = (char *)(udp + 1);
-    int payload_len = (char *)data_end - payload;
-    size_t shift_len = packet_end - udp_start;
+    return XDP_PASS;
+}
 
-    if (pw_start + shift_len > packet_end)
+SEC("xdp")
+int filter_pass(struct xdp_md *ctx) {
+    void *data = (void *)(long)ctx->data;
+    void *data_end = (void *)(long)ctx->data_end;
+    struct ethhdr *eth = data;
+    if ((void *)(eth + 1) > data_end)
+    return XDP_DROP;
+
+    struct iphdr *ip = (struct iphdr *)(eth + 1);
+    if ((void *)(ip + 1) > data_end)
+        return XDP_DROP;
+    struct passwd_hdr *pw = (struct passwd_hdr *)(ip + 1);
+    struct udphdr *udp = (struct udphdr *)((char *)pw + sizeof(struct passwd_hdr));
+    if ((void *)(udp + 1) > data_end)
         return XDP_DROP;
 
-    for (size_t i = 0; i < shift_len; i++) {
-        pw_start[i] = udp[i];
+    char *pw_start = (char *)pw;
+    char *payload = (char *)(udp);
+    int payload_len = (char *)data_end - payload;
+    size_t shift_len = ((void *)data_end) - ((void *)udp);
+
+    if (payload + shift_len > ((char *)data_end))
+        return XDP_DROP;
+
+    for (size_t i = 0; i < 1; i++) {
+        pw_start[i] = ((char *)udp)[i];
     }
 
     __u16 old_ip_len = ip->tot_len;
@@ -207,6 +165,7 @@ int firewall_xdp(struct xdp_md *ctx) {
     ip->check = 0;
     __u32 csum = 0;
     __u16 *ip_u16 = (__u16 *)ip;
+    #pragma unroll
     for (int i = 0; i < sizeof(struct iphdr) / 2; i++)
         csum += ip_u16[i];
     while (csum >> 16)
@@ -214,6 +173,10 @@ int firewall_xdp(struct xdp_md *ctx) {
     ip->check = ~csum;
 
     struct udphdr *udp_new = (struct udphdr *)pw_start;
+
+    if ((void *)(udp_new + 1) > data_end)
+        return XDP_DROP;
+
     __u16 old_udp_len = udp->len;
     __u16 new_udp_len = bpf_htons(bpf_ntohs(old_udp_len) - sizeof(struct passwd_hdr));
     udp_new->len = new_udp_len;

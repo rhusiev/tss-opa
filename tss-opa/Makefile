@@ -22,7 +22,7 @@ VMLINUX := ../third_party/vmlinux/$(ARCH)/vmlinux.h
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
 INCLUDES := -I$(BUILD_DIR) -I../third_party/libbpf/include/uapi -I$(dir $(VMLINUX))
-CFLAGS := -g -Wall
+CFLAGS := -Wall -g
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = xdp-firewall
