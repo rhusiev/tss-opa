@@ -159,17 +159,18 @@ int main(int argc, char **argv) {
     unsigned char *custom_password = NULL;
     size_t password_len = 0;
     int opt;
+    char *src_ip_str = NULL;
 
     if (argc < 4) {
         fprintf(stderr,
-                "Usage: %s [-p password] <destination_ip> <destination_port> "
+                "Usage: %s [-p password] [-s source_ip] <destination_ip> <destination_port> "
                 "<message>\n",
                 argv[0]);
         return 1;
     }
 
     /* Parse command line arguments */
-    while ((opt = getopt(argc, argv, "p:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:s:")) != -1) {
         switch (opt) {
         case 'p':
             custom_password = parse_hex_password(optarg, &password_len);
@@ -178,10 +179,13 @@ int main(int argc, char **argv) {
                 return 1;
             }
             break;
+        case 's':
+            src_ip_str = optarg;
+            break;
         default:
             fprintf(
                 stderr,
-                "Usage: %s [-p password] <destination_ip> <destination_port> "
+                "Usage: %s [-p password] [-s source_ip] <destination_ip> <destination_port> "
                 "<message>\n",
                 argv[0]);
             return 1;
@@ -216,7 +220,7 @@ int main(int argc, char **argv) {
     dest.sin_family = AF_INET;
     dest.sin_port = htons(atoi(argv[optind + 1]));
     if (inet_pton(AF_INET, argv[optind], &dest.sin_addr) <= 0) {
-        perror("inet_pton");
+        perror("inet_pton for destination IP");
         close(sockfd);
         return 1;
     }
@@ -246,8 +250,21 @@ int main(int argc, char **argv) {
     ip_header->ip_ttl = 64;
     ip_header->ip_p = IPPROTO_UDP;
     ip_header->ip_sum = 0;
-    ip_header->ip_src.s_addr = inet_addr("127.0.0.1"); /* Source IP */
-    ip_header->ip_dst.s_addr = dest.sin_addr.s_addr;   /* Destination IP */
+
+    if (src_ip_str) {
+        if (inet_pton(AF_INET, src_ip_str, &ip_header->ip_src) <= 0) {
+            perror("inet_pton for source IP");
+            free(packet);
+            close(sockfd);
+            return 1;
+        }
+        printf("Using source IP: %s\n", src_ip_str);
+    } else {
+        ip_header->ip_src.s_addr = inet_addr("127.0.0.1");
+        printf("Using default source IP: 127.0.0.1\n");
+    }
+
+    ip_header->ip_dst.s_addr = dest.sin_addr.s_addr;
 
     /* Set up password header */
     pw_header = (struct passwd_hdr *)(packet + sizeof(struct ip));
@@ -257,7 +274,7 @@ int main(int argc, char **argv) {
     /* Set up UDP header */
     udp_header = (struct udphdr *)(packet + sizeof(struct ip) +
                                    sizeof(struct passwd_hdr));
-    udp_header->source = htons(12345); /* Source port */
+    udp_header->source = htons(12345); /* Source port - maybe make this an option too? */
     udp_header->dest = dest.sin_port;  /* Destination port */
     udp_header->len = htons(sizeof(struct udphdr) + data_len);
     udp_header->check = 0; /* Optional for IPv4 */
