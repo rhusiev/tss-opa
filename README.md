@@ -36,12 +36,12 @@ to test. It will guide you, what the output should be.
 To run custom messages, run on server:
 
 ```sh
-./bin/xdp-firewall <NETWORK INTERFACE> <PORT1> [... other ports] -S
-tcpdump -i <NETWORK INTERFACE> -n -vv host <CLIENT IP> & # We set host, so that there is not a huge stream of other packets
+sudo ./bin/xdp-firewall <NETWORK INTERFACE> <PORT1> [... other ports] -S
+sudo tcpdump -i <NETWORK INTERFACE> -n -vv host <CLIENT IP> & # We set host, so that there is not a huge stream of other packets
 ```
 
 and on the client:
 
 ```sh
-./bin/packet_sender <SERVER IP> <PORT> <MESSAGE> [-s <CLIENT IP>] # client ip needed if you are sending outside of localhost
+sudo ./bin/packet_sender <SERVER IP> <PORT> <MESSAGE> [-s <CLIENT IP>] # client ip needed if you are sending outside of localhost
 ```
