@@ -219,8 +219,6 @@ int main(int argc, char **argv) {
         free(custom_password);
     }
 
-    print_hex_password(password, PASSWORD_SIZE);
-
     /* Create raw socket */
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
     if (sockfd < 0) {

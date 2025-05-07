@@ -83,7 +83,6 @@ static int setup_password(int map_fd, const unsigned char *password,
         return -1;
     }
 
-    print_hex_password(password, PASSWORD_SIZE);
     return 0;
 }
 
