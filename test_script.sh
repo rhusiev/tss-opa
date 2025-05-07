@@ -24,7 +24,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo -e "\n== Starting tcpdump =="
-tcpdump -i "$INTERFACE" -n -vv host "$TEST_IP" -X &
+tcpdump -i "$INTERFACE" -n -vv host "$TEST_IP" -A &
 TCPDUMP_PID=$!
 
 sleep 1

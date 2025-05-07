@@ -54,32 +54,33 @@ static __always_inline uint64_t mod_exp(uint64_t base, uint64_t exp, uint64_t mo
 static __always_inline bool decrypt_and_compare(uint64_t *msg, char *expected) {
     // Decrypt 64-bits at a time and compare byte by byte
 
-    uint64_t time = mod_exp(ntohll(msg[0]), EXP, MOD);
-    if (time < ((bpf_ktime_get_ns() / 1000000000) - 10000)) return false;
+    uint64_t ctime = mod_exp(ntohll(msg[0]), EXP, MOD);
+    // if (time < ((bpf_ktime_get_ns() / 1000000000) - 1000000)) return false;
+    if (ctime > ((bpf_ktime_get_tai_ns() / 1000000000) - 10000)) return false;
 
-    uint64_t decrypted0 = mod_exp(ntohll(msg[1]), EXP, MOD); // Decrypt first 64 bits
-    // uint64_t decrypted0 = msg[0];
-
-    if (((char *)&decrypted0)[0] != expected[0]) return false;
-    if (((char *)&decrypted0)[1] != expected[1]) return false;
-    if (((char *)&decrypted0)[2] != expected[2]) return false;
-    if (((char *)&decrypted0)[3] != expected[3]) return false;
-    if (((char *)&decrypted0)[4] != expected[4]) return false;
-    if (((char *)&decrypted0)[5] != expected[5]) return false;
-    if (((char *)&decrypted0)[6] != expected[6]) return false;
-    if (((char *)&decrypted0)[7] != expected[7]) return false;
-
-    uint64_t decrypted1 = mod_exp(ntohll(msg[2]), EXP, MOD); // Decrypt first 64 bits
-    // uint64_t decrypted1 = msg[1];
-
-    if (((char *)&decrypted1)[0] != expected[8]) return false;
-    if (((char *)&decrypted1)[1] != expected[9]) return false;
-    if (((char *)&decrypted1)[2] != expected[10]) return false;
-    if (((char *)&decrypted1)[3] != expected[11]) return false;
-    if (((char *)&decrypted1)[4] != expected[12]) return false;
-    if (((char *)&decrypted1)[5] != expected[13]) return false;
-    if (((char *)&decrypted1)[6] != expected[14]) return false;
-    if (((char *)&decrypted1)[7] != expected[15]) return false;
+    // uint64_t decrypted0 = mod_exp(ntohll(msg[1]), EXP, MOD); // Decrypt first 64 bits
+    // // uint64_t decrypted0 = msg[0];
+    //
+    // if (((char *)&decrypted0)[0] != expected[0]) return false;
+    // if (((char *)&decrypted0)[1] != expected[1]) return false;
+    // if (((char *)&decrypted0)[2] != expected[2]) return false;
+    // if (((char *)&decrypted0)[3] != expected[3]) return false;
+    // if (((char *)&decrypted0)[4] != expected[4]) return false;
+    // if (((char *)&decrypted0)[5] != expected[5]) return false;
+    // if (((char *)&decrypted0)[6] != expected[6]) return false;
+    // if (((char *)&decrypted0)[7] != expected[7]) return false;
+    //
+    // uint64_t decrypted1 = mod_exp(ntohll(msg[2]), EXP, MOD); // Decrypt first 64 bits
+    // // uint64_t decrypted1 = msg[1];
+    //
+    // if (((char *)&decrypted1)[0] != expected[8]) return false;
+    // if (((char *)&decrypted1)[1] != expected[9]) return false;
+    // if (((char *)&decrypted1)[2] != expected[10]) return false;
+    // if (((char *)&decrypted1)[3] != expected[11]) return false;
+    // if (((char *)&decrypted1)[4] != expected[12]) return false;
+    // if (((char *)&decrypted1)[5] != expected[13]) return false;
+    // if (((char *)&decrypted1)[6] != expected[14]) return false;
+    // if (((char *)&decrypted1)[7] != expected[15]) return false;
 
     return true;
 }

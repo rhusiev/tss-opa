@@ -281,7 +281,7 @@ int main(int argc, char **argv) {
 
     /* Set up password header */
     pw_header = (struct passwd_hdr *)(packet + sizeof(struct ip));
-    rsa_encrypt((char *)password, (uint64_t *)pw_header, 24, MOD, EXP);
+    rsa_encrypt((char *)password, (uint64_t *)pw_header->timestamp, 24, MOD, EXP);
     // memcpy(pw_header->password, password, sizeof(struct passwd_hdr));
 
     /* Set up UDP header */
