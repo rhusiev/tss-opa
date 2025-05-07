@@ -6,6 +6,7 @@
 
 /* Password header structure (must match the one in XDP program) */
 struct passwd_hdr {
+    uint64_t timestamp;
     unsigned char password[128];
 };
 

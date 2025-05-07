@@ -27,6 +27,17 @@ static __always_inline bool is_port_allowed(__u16 port) {
     return value != NULL;
 }
 
+static inline __u64 ntohll(__u64 x) {
+    return (((x & 0xff00000000000000ULL) >> 56) |
+            ((x & 0x00ff000000000000ULL) >> 40) |
+            ((x & 0x0000ff0000000000ULL) >> 24) |
+            ((x & 0x000000ff00000000ULL) >> 8)  |
+            ((x & 0x00000000ff000000ULL) << 8)  |
+            ((x & 0x0000000000ff0000ULL) << 24) |
+            ((x & 0x000000000000ff00ULL) << 40) |
+            ((x & 0x00000000000000ffULL) << 56));
+}
+
 static __always_inline uint64_t mod_exp(uint64_t base, uint64_t exp, uint64_t mod) {
     uint64_t result = 1;
     base = base % mod;
@@ -43,7 +54,10 @@ static __always_inline uint64_t mod_exp(uint64_t base, uint64_t exp, uint64_t mo
 static __always_inline bool decrypt_and_compare(uint64_t *msg, char *expected) {
     // Decrypt 64-bits at a time and compare byte by byte
 
-    uint64_t decrypted0 = mod_exp(msg[0], EXP, MOD); // Decrypt first 64 bits
+    uint64_t time = mod_exp(ntohll(msg[0]), EXP, MOD);
+    if (time < ((bpf_ktime_get_ns() / 1000000000) - 10000)) return false;
+
+    uint64_t decrypted0 = mod_exp(ntohll(msg[1]), EXP, MOD); // Decrypt first 64 bits
     // uint64_t decrypted0 = msg[0];
 
     if (((char *)&decrypted0)[0] != expected[0]) return false;
@@ -55,7 +69,7 @@ static __always_inline bool decrypt_and_compare(uint64_t *msg, char *expected) {
     if (((char *)&decrypted0)[6] != expected[6]) return false;
     if (((char *)&decrypted0)[7] != expected[7]) return false;
 
-    uint64_t decrypted1 = mod_exp(msg[1], EXP, MOD); // Decrypt first 64 bits
+    uint64_t decrypted1 = mod_exp(ntohll(msg[2]), EXP, MOD); // Decrypt first 64 bits
     // uint64_t decrypted1 = msg[1];
 
     if (((char *)&decrypted1)[0] != expected[8]) return false;
@@ -154,39 +168,42 @@ int filter_pass(struct xdp_md *ctx) {
     if (payload + shift_len > ((char *)data_end))
         return XDP_DROP;
 
-    for (size_t i = 0; i < 1; i++) {
-        pw_start[i] = ((char *)udp)[i];
-    }
+    // if (udp + shift_len > ((char *)data_end))
+    //     return XDP_DROP;
 
-    __u16 old_ip_len = ip->tot_len;
-    __u16 new_ip_len = bpf_htons(bpf_ntohs(old_ip_len) - sizeof(struct passwd_hdr));
-    ip->tot_len = new_ip_len;
+    // for (size_t i = 0; udp + i < data_end; i++) {
+    //     pw_start[i] = ((char *)udp)[i];
+    // }
 
-    ip->check = 0;
-    __u32 csum = 0;
-    __u16 *ip_u16 = (__u16 *)ip;
-    #pragma unroll
-    for (int i = 0; i < sizeof(struct iphdr) / 2; i++)
-        csum += ip_u16[i];
-    while (csum >> 16)
-        csum = (csum & 0xFFFF) + (csum >> 16);
-    ip->check = ~csum;
-
-    struct udphdr *udp_new = (struct udphdr *)pw_start;
-
-    if ((void *)(udp_new + 1) > data_end)
-        return XDP_DROP;
-
-    __u16 old_udp_len = udp->len;
-    __u16 new_udp_len = bpf_htons(bpf_ntohs(old_udp_len) - sizeof(struct passwd_hdr));
-    udp_new->len = new_udp_len;
-
-    if (udp->check) {
-        __u32 udp_csum = bpf_csum_diff((__be32 *)&old_udp_len, sizeof(old_udp_len),
-                                       (__be32 *)&new_udp_len, sizeof(new_udp_len),
-                                       ~udp->check & 0xFFFF);
-        udp_new->check = ~((udp_csum + (udp_csum >> 16)) & 0xFFFF);
-    }
+    // __u16 old_ip_len = ip->tot_len;
+    // __u16 new_ip_len = bpf_htons(bpf_ntohs(old_ip_len) - sizeof(struct passwd_hdr) - 8);
+    // ip->tot_len = new_ip_len;
+    //
+    // ip->check = 0;
+    // __u32 csum = 0;
+    // __u16 *ip_u16 = (__u16 *)ip;
+    // #pragma unroll
+    // for (int i = 0; i < sizeof(struct iphdr) / 2; i++)
+    //     csum += ip_u16[i];
+    // while (csum >> 16)
+    //     csum = (csum & 0xFFFF) + (csum >> 16);
+    // ip->check = ~csum;
+    //
+    // struct udphdr *udp_new = (struct udphdr *)pw_start;
+    //
+    // if ((void *)(udp_new + 1) > data_end)
+    //     return XDP_DROP;
+    //
+    // __u16 old_udp_len = udp->len;
+    // __u16 new_udp_len = bpf_htons(bpf_ntohs(old_udp_len) - sizeof(struct passwd_hdr));
+    // udp_new->len = new_udp_len;
+    //
+    // if (udp->check) {
+    //     __u32 udp_csum = bpf_csum_diff((__be32 *)&old_udp_len, sizeof(old_udp_len),
+    //                                    (__be32 *)&new_udp_len, sizeof(new_udp_len),
+    //                                    ~udp->check & 0xFFFF);
+    //     udp_new->check = ~((udp_csum + (udp_csum >> 16)) & 0xFFFF);
+    // }
 
     return XDP_PASS;
 }

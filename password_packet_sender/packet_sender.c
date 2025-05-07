@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <stdint.h>
@@ -7,11 +8,20 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <time.h>
 #include "../include/xdp-firewall.h"
 
 
 static const uint64_t MOD = 1773884659UL;
 static const uint64_t EXP = 782852353UL;
+
+uint64_t htonll(uint64_t value) {
+    // Convert from little endian to big endian (network order)
+    const uint32_t high_part = htonl((uint32_t)(value >> 32));
+    const uint32_t low_part = htonl((uint32_t)(value & 0xFFFFFFFFLL));
+    // Swap the high and low parts
+    return (((uint64_t)low_part) << 32) | high_part;
+}
 
 // Checksum calculation for IP and UDP headers
 unsigned short in_cksum(unsigned short *addr, int len) {
@@ -37,7 +47,7 @@ unsigned short in_cksum(unsigned short *addr, int len) {
 }
 
 unsigned char *parse_hex_password(const char *hex_str, size_t *out_len) {
-    size_t len = strlen(hex_str);
+    size_t len = strlen(hex_str) + 8;
     unsigned char *result;
     size_t i, j;
 
@@ -47,7 +57,9 @@ unsigned char *parse_hex_password(const char *hex_str, size_t *out_len) {
     }
 
     *out_len = len / 2;
-    result = malloc(*out_len);
+    result = malloc(*out_len + sizeof(uint64_t));
+    uint64_t *timestamp = (uint64_t*)result;
+    *timestamp = htonll(time(NULL));
     if (!result) {
         fprintf(stderr, "Memory allocation failed\n");
         return NULL;
@@ -55,7 +67,7 @@ unsigned char *parse_hex_password(const char *hex_str, size_t *out_len) {
 
     for (i = 0, j = 0; i < len; i += 2, j++) {
         char byte_str[3] = {hex_str[i], hex_str[i + 1], '\0'};
-        result[j] = (unsigned char)strtol(byte_str, NULL, 16);
+        result[j + 8] = (unsigned char)strtol(byte_str, NULL, 16);
     }
 
     return result;
@@ -135,7 +147,8 @@ int rsa_encrypt(const char *message, uint64_t *encrypted,
   }
 
   for (size_t i = 0; i < message_size; i++) {
-    if ((encrypted[i] = rsa_modExp(message[i], exponent, modulus)) ==
+    uint64_t encrypt = rsa_modExp(message[i], exponent, modulus);
+    if ((encrypted[i] = htonll(encrypt)) ==
         -1)
       return 1;
   }
@@ -251,7 +264,7 @@ int main(int argc, char **argv) {
 
     /* Set up password header */
     pw_header = (struct passwd_hdr *)(packet + sizeof(struct ip));
-    rsa_encrypt((char *)password, (uint64_t *)pw_header->password, 16, MOD, EXP);
+    rsa_encrypt((char *)password, (uint64_t *)pw_header->timestamp, 24, MOD, EXP);
     // memcpy(pw_header->password, password, sizeof(struct passwd_hdr));
 
     /* Set up UDP header */
